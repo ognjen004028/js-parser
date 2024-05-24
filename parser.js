@@ -9,7 +9,7 @@ const tokenize = (expression) => {
 
   // Split the expression into characters and reduce them into tokens
   expression.split('').reduce((acc, char) => {
-    if (char === '') return acc;
+    if (char === ')') return acc;
 
     // If the character is a number or a decimal point, add it to the current number token or create a new number token
     if (char >= '0' && char <= '9' || char === '.') {
@@ -33,16 +33,15 @@ const tokenize = (expression) => {
 // Function to get the precedence of an operator
 const getPrecedence = (operator) => {
   switch (operator) {
-    case '+':
-    case '-':
-      return 1;
+    case '!':
+      return 4;
+    case '^':
+      return 3;
     case '*':
     case '/':
       return 2;
+    case '+':
     case '-':
-      if (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].value === '-') {
-        return 3;
-      }
       return 1;
     default:
       return 0;
@@ -61,15 +60,13 @@ const parse = (tokens) => {
       return acc;
     }
 
-    // While there are operators in the operator stack with higher precedence, pop them into the output queue
     while (
       operatorStack.length > 0 &&
-      (operatorStack[operatorStack.length - 1].value!== '(' &&
-      getPrecedence(token.value) < getPrecedence(operatorStack[operatorStack.length - 1].value) ||
-      token.value === '-' && operatorStack[operatorStack.length - 1].value === '-')
+      getPrecedence(token.value) <= getPrecedence(operatorStack[operatorStack.length - 1].value)
     ) {
       acc.push(operatorStack.pop());
     }
+
     operatorStack.push(token);
     return acc;
   }, outputQueue);
@@ -96,15 +93,19 @@ const evaluate = (outputQueue) => {
     const rightOperand = acc.pop();
     const leftOperand = acc.pop();
     switch (token.value) {
-      case '+':
-        acc.push(leftOperand + rightOperand);
-        break;
-      case '-':
-        if (typeof leftOperand === 'number' && typeof rightOperand === 'number') {
-          acc.push(leftOperand - rightOperand);
+      case '!':
+        if (typeof rightOperand === 'number') {
+          let result = 1;
+          for (let i = 1; i <= rightOperand; i++) {
+            result *= i;
+          }
+          acc.push(result);
         } else {
-          acc.push(-rightOperand);
+          throw new Error('Invalid input for factorial');
         }
+        break;
+      case '^':
+        acc.push(Math.pow(leftOperand, rightOperand));
         break;
       case '*':
         acc.push(leftOperand * rightOperand);
@@ -114,6 +115,16 @@ const evaluate = (outputQueue) => {
           throw new Error('Division by zero');
         }
         acc.push(leftOperand / rightOperand);
+        break;
+      case '+':
+        acc.push(leftOperand + rightOperand);
+        break;
+      case '-':
+        if (typeof leftOperand === 'number' && typeof rightOperand === 'number') {
+          acc.push(leftOperand - rightOperand);
+        } else {
+          acc.push(-rightOperand);
+        }
         break;
       default:
         throw new Error(`Bad input: ${token.value}`);
@@ -131,7 +142,7 @@ calculateBtn.addEventListener('click', (event) => {
   const expression = expressionInput.value;
 
   // Check if the expression contains invalid characters
-  if (/[^0-9.()+\-*/ ]/.test(expression)) {
+  if (/[^0-9.()+\-*/^! ]/.test(expression)) {
     resultElement.textContent = 'Error: Invalid input';
     return;
   }
@@ -148,6 +159,6 @@ calculateBtn.addEventListener('click', (event) => {
     const result = evaluate(outputQueue);
     resultElement.textContent = `Result: ${result}`;
   } catch (error) {
-resultElement.textContent = `Error: ${error.message}`;
+    resultElement.textContent = `Error: ${error.message}`;
   }
 });
