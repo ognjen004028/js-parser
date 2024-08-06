@@ -6,26 +6,25 @@ const resultElement = document.getElementById('result');
 // Function to tokenize the expression
 const tokenize = (expression) => {
   const tokens = [];
+  let numberBuffer = '';
 
-  // Split the expression into characters and reduce them into tokens
-  expression.split('').reduce((acc, char) => {
-    if (char === ')') return acc;
-
-    // If the character is a number or a decimal point, add it to the current number token or create a new number token
-    if (char >= '0' && char <= '9' || char === '.') {
-      const lastIndex = acc.length - 1;
-      if (lastIndex >= 0 && acc[lastIndex].type === 'number') {
-        acc[lastIndex].value = `${acc[lastIndex].value}${char}`;
-      } else {
-        acc.push({ type: 'number', value: parseFloat(char) });
-      }
+  for (let char of expression) {
+    if (/\d|\./.test(char)) {
+      numberBuffer += char;
     } else {
-      // If the character is an operator, create a new operator token
-      acc.push({ type: 'operator', value: char });
+      if (numberBuffer) {
+        tokens.push({ type: 'number', value: parseFloat(numberBuffer) });
+        numberBuffer = '';
+      }
+      if (/\S/.test(char)) {
+        tokens.push({ type: 'operator', value: char });
+      }
     }
+  }
 
-    return acc;
-  }, tokens);
+  if (numberBuffer) {
+    tokens.push({ type: 'number', value: parseFloat(numberBuffer) });
+  }
 
   return tokens;
 };
@@ -48,33 +47,38 @@ const getPrecedence = (operator) => {
   }
 };
 
-// Function to parse the tokens into an output queue
+// Function to parse the tokens into an output queue (Shunting Yard Algorithm)
 const parse = (tokens) => {
   const outputQueue = [];
   const operatorStack = [];
 
-  // Reduce the tokens into the output queue and operator stack
-  tokens.reduce((acc, token) => {
+  tokens.forEach((token) => {
     if (token.type === 'number') {
-      acc.push(token);
-      return acc;
+      outputQueue.push(token);
+    } else if (token.type === 'operator') {
+      if (token.value === '(') {
+        operatorStack.push(token);
+      } else if (token.value === ')') {
+        while (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].value !== '(') {
+          outputQueue.push(operatorStack.pop());
+        }
+        operatorStack.pop(); // Remove the '('
+      } else {
+        while (
+          operatorStack.length > 0 &&
+          getPrecedence(token.value) <= getPrecedence(operatorStack[operatorStack.length - 1].value)
+        ) {
+          outputQueue.push(operatorStack.pop());
+        }
+        operatorStack.push(token);
+      }
     }
+  });
 
-    while (
-      operatorStack.length > 0 &&
-      getPrecedence(token.value) <= getPrecedence(operatorStack[operatorStack.length - 1].value)
-    ) {
-      acc.push(operatorStack.pop());
-    }
-
-    operatorStack.push(token);
-    return acc;
-  }, outputQueue);
-
-  // Pop all remaining operators from the operator stack into the output queue
   while (operatorStack.length > 0) {
     outputQueue.push(operatorStack.pop());
   }
+
   return outputQueue;
 };
 
@@ -82,55 +86,43 @@ const parse = (tokens) => {
 const evaluate = (outputQueue) => {
   const stack = [];
 
-  // Reduce the output queue into the final result
-  outputQueue.reduce((acc, token) => {
+  outputQueue.forEach((token) => {
     if (token.type === 'number') {
-      acc.push(token.value);
-      return acc;
-    }
-
-    // Pop the right and left operands from the stack and perform the operation
-    const rightOperand = acc.pop();
-    const leftOperand = acc.pop();
-    switch (token.value) {
-      case '!':
-        if (typeof rightOperand === 'number') {
+      stack.push(token.value);
+    } else if (token.type === 'operator') {
+      const rightOperand = stack.pop();
+      const leftOperand = stack.pop();
+      switch (token.value) {
+        case '!':
           let result = 1;
           for (let i = 1; i <= rightOperand; i++) {
             result *= i;
           }
-          acc.push(result);
-        } else {
-          throw new Error('Invalid input for factorial');
-        }
-        break;
-      case '^':
-        acc.push(Math.pow(leftOperand, rightOperand));
-        break;
-      case '*':
-        acc.push(leftOperand * rightOperand);
-        break;
-      case '/':
-        if (rightOperand === 0) {
-          throw new Error('Division by zero');
-        }
-        acc.push(leftOperand / rightOperand);
-        break;
-      case '+':
-        acc.push(leftOperand + rightOperand);
-        break;
-      case '-':
-        if (typeof leftOperand === 'number' && typeof rightOperand === 'number') {
-          acc.push(leftOperand - rightOperand);
-        } else {
-          acc.push(-rightOperand);
-        }
-        break;
-      default:
-        throw new Error(`Bad input: ${token.value}`);
+          stack.push(result);
+          break;
+        case '^':
+          stack.push(Math.pow(leftOperand, rightOperand));
+          break;
+        case '*':
+          stack.push(leftOperand * rightOperand);
+          break;
+        case '/':
+          if (rightOperand === 0) {
+            throw new Error('Division by zero');
+          }
+          stack.push(leftOperand / rightOperand);
+          break;
+        case '+':
+          stack.push(leftOperand + rightOperand);
+          break;
+        case '-':
+          stack.push(leftOperand - rightOperand);
+          break;
+        default:
+          throw new Error(`Bad input: ${token.value}`);
+      }
     }
-    return acc;
-  }, stack);
+  });
 
   return stack[0];
 };
